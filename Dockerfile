@@ -18,6 +18,9 @@ RUN mkdir -p /clamav /defs /var/lib/clamav && chown -R root:root /clamav /defs
 
 EXPOSE 8000 3310
 
-ENV CLAMAV_DB_DIR=/defs \    CLAMAV_SCAN_PATH=/clamav \    MAX_BYTES=4000000000 \    LOG_LEVEL=INFO
+ENV CLAMAV_DB_DIR=/defs \
+    CLAMAV_SCAN_PATH=/clamav \
+    MAX_BYTES=4000000000 \
+    LOG_LEVEL=INFO
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
