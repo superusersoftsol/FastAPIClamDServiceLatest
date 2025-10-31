@@ -1,0 +1,68 @@
+name: Build & Push ClamAV FastAPI Image
+
+on:
+  workflow_dispatch:   # Manual trigger
+  push:
+    branches:
+      - main           # Auto-trigger on main branch pushes
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPO_NAME: clamav-daemon-api
+  IMAGE_TAG: latest
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Configure AWS credentials via OIDC
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::819556862395:role/Githubrolr
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+          output-env-credentials: true
+
+      # Step 3: Create ECR repo if not exists
+      - name: Create ECR repository if missing
+        run: |
+          aws ecr describe-repositories --repository-names $ECR_REPO_NAME || \
+          aws ecr create-repository --repository-name $ECR_REPO_NAME
+
+      # Step 4: Login to ECR
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Step 5: Build Docker image
+      - name: Build Docker image
+        run: docker build -t $ECR_REPO_NAME:${{ env.IMAGE_TAG }} .
+
+      # Step 6: Tag Docker image for ECR
+      - name: Tag Docker image
+        run: |
+          docker tag $ECR_REPO_NAME:${{ env.IMAGE_TAG }} \
+          ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ env.IMAGE_TAG }}
+
+      # Step 7: Push Docker image to ECR
+      - name: Push Docker image
+        run: docker push ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPO_NAME }}:${{ env.IMAGE_TAG }}
+
+      # Step 8 (Optional): Update ECS service to pull latest image
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster clamav-cluster \
+            --service clamav-service \
+            --force-new-deployment \
+            --region $AWS_REGION
