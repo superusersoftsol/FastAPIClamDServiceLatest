@@ -1,0 +1,47 @@
+name: Extract & Commit Zip Contents
+
+on:
+  workflow_dispatch:
+    inputs:
+      zip_file:
+        description: "Name of the zip file to extract (must exist in the repo root)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  extract-and-commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract zip file
+        run: |
+          ZIP_PATH="${{ github.event.inputs.zip_file }}"
+          if [ ! -f "$ZIP_PATH" ]; then
+            echo "❌ Zip file not found: $ZIP_PATH"
+            exit 1
+          fi
+
+          echo "📦 Extracting $ZIP_PATH ..."
+          unzip -o "$ZIP_PATH" -d ./
+          echo "✅ Extraction complete, files overridden if existed."
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push changes
+        run: |
+          git add .
+          if git diff-index --quiet HEAD; then
+            echo "No changes to commit."
+          else
+            git commit -m "🔄 Extracted and updated from ${{ github.event.inputs.zip_file }}"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
